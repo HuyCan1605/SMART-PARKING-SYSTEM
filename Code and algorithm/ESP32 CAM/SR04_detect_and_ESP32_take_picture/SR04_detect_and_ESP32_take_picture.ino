@@ -11,20 +11,21 @@
 //String serverName = "192.168.1.236";
 //const char* mqtt_server = "192.168.1.236";
 
-const char* ssid = "abcde";
-const char* password = "khongchodau";
-const char* mqtt_server = "192.168.43.198";
-String serverName = "192.168.43.198";   // REPLACE WITH YOUR Raspberry Pi IP ADDRESS
+// Define WiFi and MQTT connection parameters
+const char* ssid = "abcde";                    // WiFi network name
+const char* password = "khongchodau";          // WiFi network password 
+const char* mqtt_server = "192.168.43.198";    // MQTT server IP address
+String serverName = "192.168.43.198";          // Raspberry Pi IP ADDRESS
 
 
 
-const char* mqttUser = "huycanpi";
-const char* mqttPassword = "123456";
+const char* mqttUser = "huycanpi";             // MQTT username
+const char* mqttPassword = "123456";           // MQTT password
 
-String serverPath = "/upload.php";     // The default serverPath should be upload.php
+String serverPath = "/upload.php";             // HTTP server path
+const int serverPort = 80;                     // HTTP server port
 
-const int serverPort = 80;
-
+// Initialize WiFiClient and PubSubClient objects
 WiFiClient espClient;
 PubSubClient client(mqtt_server, 1883, espClient);
 
@@ -48,12 +49,11 @@ PubSubClient client(mqtt_server, 1883, espClient);
 #define HREF_GPIO_NUM     23
 #define PCLK_GPIO_NUM     22
 #define FLASH_GPIO_NUM     4
-#define trigPin  12 // Chân GPIO kết nối với chân Trigger của HC-SR04
-#define echoPin  13 // Chân GPIO kết nối với chân Echo của HC-SR04
+#define trigPin  12             // GPIO pin connected to the Trigger pin of HC-SR04
+#define echoPin  13             // GPIO pin connected to the Echo pin of HC-SR04
 #define buzzer 15
 #define MAX_DISTANCE 200
 NewPing sonar(trigPin, echoPin, MAX_DISTANCE);
-
 
 
 unsigned long lastMsg = 0;
@@ -67,17 +67,20 @@ bool takeNewPhoto = false;
 //#define MSG_BUFFER_SIZE  (50)
 //char msg[MSG_BUFFER_SIZE];
 
-void flash(int N)
+void flash(int N)                          // flash n times
 {
   digitalWrite(FLASH_GPIO_NUM, HIGH);
   delay(N * 1000);
   digitalWrite(FLASH_GPIO_NUM, LOW);
 }
-
+============================================================= * MQTT * =========================================================================
 void receive_MQTT_message() {
+  // Check if MQTT client is connected
   if (!client.connected()) {
+    // If not connected, attempt to reconnect
     reconnect();
   }
+  // Handle incoming MQTT messages
   client.loop();
 }
 void reconnect() {
@@ -104,26 +107,34 @@ void reconnect() {
   }
 }
 void callback(char* topic, byte* message, unsigned int length) {
+  // Print message arrival notification with topic
   Serial.print("Message arrived on topic: ");
   Serial.print(topic);
   Serial.print(". Message: ");
   String messageTemp;
-
+  
+ // Loop through each byte of the message
   for (int i = 0; i < length; i++) {
     Serial.print((char)message[i]);
     messageTemp += (char)message[i];
   }
-  MQTTmessage = messageTemp.toInt();
 
+  // Convert the received message to an integer
+  MQTTmessage = messageTemp.toInt();
   Serial.println();
 }
+============================================================= * CAMERA * =========================================================================
 String sendPhoto() {
-  String getAll;
-  String getBody;
+  String getAll; // String to store all received data
+  String getBody; // String to store body of HTTP response
 
+  // Capture a photo
   camera_fb_t * fb = NULL;
   fb = esp_camera_fb_get();
+  // Flash LED to indicate photo capture
   flash(1);
+
+  // Check if photo capture failed
   if (!fb) {
     Serial.println("Camera capture failed");
     delay(1000);
@@ -134,15 +145,20 @@ String sendPhoto() {
 
   Serial.println("Connecting to server: " + serverName);
 
+  // Connect to HTTP server
   if (espClient.connect(serverName.c_str(), serverPort)) {
     Serial.println("Connection successful!");
+
+    // Construct HTTP request headers
     String head = "--RandomNerdTutorials\r\nContent-Disposition: form-data; name=\"imageFile\"; filename=\"A1.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n";
     String tail = "\r\n--RandomNerdTutorials--\r\n";
 
+    // Calculate total content length
     uint32_t imageLen = fb->len;
     uint32_t extraLen = head.length() + tail.length();
     uint32_t totalLen = imageLen + extraLen;
 
+    // Send HTTP POST request headers
     espClient.println("POST " + serverPath + " HTTP/1.1");
     espClient.println("Host: " + serverName);
     espClient.println("Content-Length: " + String(totalLen));
@@ -150,6 +166,7 @@ String sendPhoto() {
     espClient.println();
     espClient.print(head);
 
+    // Send photo data
     uint8_t *fbBuf = fb->buf;
     size_t fbLen = fb->len;
     for (size_t n = 0; n < fbLen; n = n + 1024) {
@@ -164,12 +181,16 @@ String sendPhoto() {
     }
     espClient.print(tail);
 
+    // Release the frame buffer
     esp_camera_fb_return(fb);
 
+
+    // Set timeout timer
     int timoutTimer = 10000;
     long startTimer = millis();
     boolean state = false;
 
+    // Wait for response from server
     while ((startTimer + timoutTimer) > millis()) {
       Serial.print(".");
       delay(100);
@@ -195,15 +216,16 @@ String sendPhoto() {
     }
     Serial.println();
     espClient.stop();
-    Serial.println(getBody);
+    Serial.println(getBody); // Print HTTP response body
   }
   else {
+    // If connection fails, print error message
     getBody = "Connection to " + serverName +  " failed.";
     Serial.println(getBody);
   }
   return getBody;
 }
-
+============================================================= * HC- SR04 * =========================================================================
 long getDuration() {
   digitalWrite(trigPin, LOW);
   delayMicroseconds(10);
@@ -214,7 +236,6 @@ long getDuration() {
   digitalWrite(trigPin, LOW);
   return pulseIn(echoPin, HIGH);
 }
-
 void sr04_detect_car() {
   float duration = 0, distance = 0;
   duration = sonar.ping_median(20);
@@ -241,9 +262,8 @@ void sr04_detect_car() {
     sendPhoto();
   }
   delay(1000);
-
 }
-
+============================================================= * BUZZER * =========================================================================
 void alert_to_user() {
   if (MQTTmessage == 1 && carDetection && number_sended_photo < 6) {
     if (number_sended_photo == 4) {
