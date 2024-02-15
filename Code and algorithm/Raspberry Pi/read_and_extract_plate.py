@@ -13,8 +13,6 @@ import time
 import datetime
 
 
-# Káº¿t ná»‘i tá»›i Firestore
-
 
 RED = (0,0,255)
 BLUE = (255,0,0)
@@ -37,13 +35,13 @@ REGISTRATION_SERIES = ["A", "B", "C", "D", "E", "F", "G", "H", "K",
 
 
 def read_plate_number(img_path):
-    # ######## Upload KNN model ######################
+    ################################# Upload KNN model ######################
     npaClassifications = np.loadtxt("/home/pi/Documents/Detect_plate/classifications.txt", np.float32)
     npaFlattenedImages = np.loadtxt("/home/pi/Documents/Detect_plate/flattened_images.txt", np.float32)
     npaClassifications = npaClassifications.reshape((npaClassifications.size, 1))  # reshape numpy array to 1d, necessary to pass to call to train
     kNearest = cv2.ml.KNearest_create()  # instantiate KNN object
     kNearest.train(npaFlattenedImages, cv2.ml.ROW_SAMPLE, npaClassifications)
-    ######################### 
+    #######################################################################
     
         
     image = cv2.imread(img_path)
@@ -52,7 +50,7 @@ def read_plate_number(img_path):
     img = cv2.resize(image, dsize=(1280, 960))
     imgGrayscaleplate, imgThreshplate = util2.preprocess(img)
     canny_image = cv2.Canny(imgThreshplate, 250, 255)  # Canny Edge
-    ################################################################# anh grayscale
+    ################################################################# Preprocess image ##########################################
     plt.figure()
     plt.title("Gray image")
     plt.imshow(cv2.cvtColor(imgGrayscaleplate, cv2.COLOR_BGR2RGB))
@@ -75,13 +73,15 @@ def read_plate_number(img_path):
     # plt.title("erosion")
     # plt.imshow(cv2.cvtColor(img_erosion, cv2.COLOR_BGR2RGB))
     # plt.show()
-    ###### Draw contour and filter out the license plate  #############
+
+ 
+    ############################### Draw contour and filter out the license plate  ############################################
     contours, hierarchy = cv2.findContours(dilated_image, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
 
     contours1 = sorted(contours, key=cv2.contourArea, reverse=True)[:3]  # Láº¥y 3 contours cÃ³ diá»‡n tÃ­ch lá»›n nháº¥t
     clone_img2 = np.zeros((canny_image.shape[0],canny_image.shape[1],3), dtype = np.uint8) 
     clone_img = imgGrayscaleplate.copy()
-    cv2.drawContours(clone_img2, contours1, -1, (255, 0, 0), 1)  # Váº½ contour cÃ¡c kÃ­ tá»± trong biá»ƒn sá»‘
+    cv2.drawContours(clone_img2, contours1, -1, (255, 0, 0), 1)  
     #plt.title("Contours")
     #plt.imshow(cv2.cvtColor(clone_img2, cv2.COLOR_BGR2RGB))
     #plt.show()
@@ -95,7 +95,7 @@ def read_plate_number(img_path):
     # print(height_img * wid_img)
     for c in contours1:
         peri = cv2.arcLength(c, True)  # TÃ­nh chu vi
-        approx = cv2.approxPolyDP(c, 0.09 * peri, True)  # lÃ m xáº¥p xá»‰ Ä‘a giÃ¡c, chá»‰ giá»¯ contour cÃ³ 4 cáº¡nh
+        approx = cv2.approxPolyDP(c, 0.09 * peri, True)  
         [x, y, w, h] = cv2.boundingRect(approx.copy())
         #cv2.rectangle(img, (x, y), (x + w, y + h), (RED), 2)
         s = w * h
@@ -133,7 +133,7 @@ def read_plate_number(img_path):
     binary_image = cv2.adaptiveThreshold(blurred, 255.0, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 199, 5)
     roi = plate
     imgThresh = binary_image
-    ########################################## anh plate
+    ########################################## Preprocess plate image #################################################3
     #plt.title("plate")
     #plt.imshow(cv2.cvtColor(roi, cv2.COLOR_BGR2RGB))
     #plt.show()
@@ -156,13 +156,13 @@ def read_plate_number(img_path):
 
 
     ##################### Filter out characters #################
-    cv2.drawContours(roi, cont, -1, (BLUE), 3)  # Váº½ contour cÃ¡c kÃ­ tá»± trong biá»ƒn sá»‘
+    cv2.drawContours(roi, cont, -1, (BLUE), 3)  
     
     char_x_ind = {}
     char_x = []
     height, width, _ = roi.shape
     roiarea = height * width
-
+  
     for ind, cnt in enumerate(cont):
         (x, y, w, h) = cv2.boundingRect(cont[ind])
         cv2.rectangle(roi, (x, y), (x + w, y + h), (RED), 2)
@@ -184,12 +184,12 @@ def read_plate_number(img_path):
             char_x_ind[x] = ind
             #print( char_x, ", ", char_x_ind[x], ",", ind)
             
-    ########################################################## polygon plate
+
     #plt.figure(2)
     #plt.title("Crop plate image")
     #plt.imshow(cv2.cvtColor(roi, cv2.COLOR_BGR2RGB))
     #plt.show()
-    ############ Character recognition ##########################
+    ##########################3######## Character recognition ##########################
     char_x = sorted(char_x)
     strFinalString = ""
     first_line = ""
